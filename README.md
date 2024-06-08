@@ -5,7 +5,7 @@ This is a small command-line interface (CLI) to run local inference (with gpu-ac
 To make predictions on a single image, use the following format:
 <i>python classify_wbc.py --image_path <<image_path>></i>
 
-Currently, this is only tested for .jpg images. Also, my implementation will automatically resize the image, so don't worry about resolution. 
+Currently, this is only tested for .jpg and .png images. Also, my implementation will automatically resize the image, so don't worry about resolution. 
 
 As an example, you can run this command on a randomly selected image of an eosinophil: <i>python classify_wbc.py --image_path random_eosinophil_image.jpg</i>
 
