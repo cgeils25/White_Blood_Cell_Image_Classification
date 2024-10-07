@@ -12,7 +12,7 @@ As an example, you can run this command on a randomly selected image of an eosin
 The output for this image should be the following:
 <i>The model is 99.91% confident that the image is of a(n) Eosinophil</i>
 
-Also, if you'd like to see the full workflow to train and evaluate this model, you can view that noteboook in "white_blood_cell_image_classification.ipynb". Note: this notebook is only functional in its original location in my main data science repo, which you can find <a target="_blank" href="https://github.com/cgeils25/Data_Science_Projects/tree/main">here</a>.
+Also, if you'd like to see the full workflow to train and evaluate this model, you can view that noteboook in "white_blood_cell_image_classification.ipynb".
 
 Lastly, I've included a full list of dependencies as a requirements.txt, so you can reconstruct my environment.
 
