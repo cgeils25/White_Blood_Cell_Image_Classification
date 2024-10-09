@@ -19,7 +19,7 @@ python classify_wbc.py --image_path random_eosinophil_image.jpg
 The output for this image should be the following:
 <i>The model is 99.91% confident that the image is of a(n) Eosinophil</i>
 
-Also, if you'd like to see the full workflow to train and evaluate this model, you can view that noteboook in "white_blood_cell_image_classification.ipynb".
+Also, if you'd like to see the full workflow to train and evaluate this model, you can view that noteboook in ```white_blood_cell_image_classification.ipynb```
 
 Lastly, I've included a full list of dependencies as a requirements.txt, so you can reconstruct my environment.
 
