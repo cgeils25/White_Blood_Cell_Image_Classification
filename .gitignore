@@ -1,2 +1,4 @@
 data_*
 __pycache__
+CMakeCache.txt
+CMakeFiles/
