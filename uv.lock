@@ -935,6 +935,15 @@ wheels = [
 ]
 
 [[package]]
+name = "neattime"
+version = "0.0.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/8a/81/1a6d7e417927383ab307b0813c4f345e9c891c947f8a22a052b24eb7b75c/neattime-0.0.4.tar.gz", hash = "sha256:ff170e83ec5a39cc7f5aca2b1009e50661c20c4e639ca92452b19959aeb75b83", size = 2000 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3f/2c/22c1c820ba9b08de42c3b5aa424853e2278ac64bbfb04bb2b99c8a36088c/neattime-0.0.4-py3-none-any.whl", hash = "sha256:e87f56a6ac0da94dac2e03a397edb500a529b6620c822d1356196af980fe19ed", size = 2702 },
+]
+
+[[package]]
 name = "nest-asyncio"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1427,6 +1436,15 @@ wheels = [
 ]
 
 [[package]]
+name = "rarfile"
+version = "4.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/26/3f/3118a797444e7e30e784921c4bfafb6500fb288a0c84cb8c32ed15853c16/rarfile-4.2.tar.gz", hash = "sha256:8e1c8e72d0845ad2b32a47ab11a719bc2e41165ec101fd4d3fe9e92aa3f469ef", size = 153476 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/62/fc/ab37559419ca36dd8dd317c3a98395ed4dcee2beeb28bf6059b972906727/rarfile-4.2-py3-none-any.whl", hash = "sha256:8757e1e3757e32962e229cab2432efc1f15f210823cc96ccba0f6a39d17370c9", size = 29052 },
+]
+
+[[package]]
 name = "referencing"
 version = "0.36.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1690,6 +1708,18 @@ wheels = [
 ]
 
 [[package]]
+name = "tqdm"
+version = "4.67.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "sys_platform == 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/a8/4b/29b4ef32e036bb34e4ab51796dd745cdba7ed47ad142a9f4a1eb8e0c744d/tqdm-4.67.1.tar.gz", hash = "sha256:f8aef9c52c08c13a65f30ea34f4e5aac3fd1a34959879d7e59e63027286627f2", size = 169737 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl", hash = "sha256:26445eca388f82e72884e0d580d5464cd801a3ea01e63e5601bdff9ba6a48de2", size = 78540 },
+]
+
+[[package]]
 name = "traitlets"
 version = "5.14.3"
 source = { registry = "https://pypi.org/simple" }
@@ -1731,6 +1761,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/95/32/1a225d6164441be760d75c2c42e2780dc0873fe382da3e98a2e1e48361e5/tzdata-2025.2.tar.gz", hash = "sha256:b60a638fcc0daffadf82fe0f57e53d06bdec2f36c4df66280ae79bce6bd6f2b9", size = 196380 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/5c/23/c7abc0ca0a1526a0774eca151daeb8de62ec457e77262b66b359c3c7679e/tzdata-2025.2-py2.py3-none-any.whl", hash = "sha256:1a403fada01ff9221ca8044d701868fa132215d84beb92242d9acd2147f667a8", size = 347839 },
+]
+
+[[package]]
+name = "unrar"
+version = "0.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ea/d6/b53a4216d73a10602f524cf728c3c272b2e1f524b62f46589303225564c0/unrar-0.4.tar.gz", hash = "sha256:b24447a5b93024be600ef8255668ba23a30f451176577b691559ea1359f7d164", size = 36685 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bb/0b/53130ccd483e3db8c8a460cb579bdb21b458d5494d67a261e1a5b273fbb9/unrar-0.4-py3-none-any.whl", hash = "sha256:0ce03e28bfa90415ee1a92c8d38cad8ea244427a59a8a39c0d42bac8727cfaa0", size = 25273 },
 ]
 
 [[package]]
@@ -1794,20 +1833,28 @@ source = { virtual = "." }
 dependencies = [
     { name = "jupyter" },
     { name = "matplotlib" },
+    { name = "neattime" },
     { name = "numpy" },
+    { name = "rarfile" },
     { name = "seaborn" },
     { name = "torch" },
     { name = "torchvision" },
+    { name = "tqdm" },
+    { name = "unrar" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "jupyter", specifier = ">=1.1.1" },
     { name = "matplotlib", specifier = ">=3.10.1" },
+    { name = "neattime", specifier = ">=0.0.4" },
     { name = "numpy", specifier = ">=2.2.4" },
+    { name = "rarfile", specifier = ">=4.2" },
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "torch", specifier = ">=2.6.0" },
     { name = "torchvision", specifier = ">=0.21.0" },
+    { name = "tqdm", specifier = ">=4.67.1" },
+    { name = "unrar", specifier = ">=0.4" },
 ]
 
 [[package]]
