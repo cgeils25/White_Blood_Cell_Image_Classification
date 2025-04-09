@@ -4,6 +4,7 @@ import requests
 import rarfile
 import zipfile
 from neattime import neattime
+from typing import List
 
 DATA_URLs = ["http://dl.raabindata.com/WBC/Cropped_double_labeled/TestA.rar",
 "http://dl.raabindata.com/WBC/Cropped_double_labeled/TestB.zip",
@@ -17,7 +18,15 @@ DATA_DIR = f'data_{neattime()}/'
 
 CELL_TYPES = ['Basophil', 'Eosinophil', 'Lymphocyte', 'Monocyte', 'Neutrophil']
 
-def download_data(urls):
+def download_data(urls: List[str]):
+    """Download raw data files from URLs.
+
+    Args:
+        urls (List[str]): List of URLs to download data from.
+
+    Returns:
+        List[str]: List of file paths of downloaded files.
+    """
     downloaded_filepaths = []
 
     for url in urls:
@@ -36,7 +45,12 @@ def download_data(urls):
     return downloaded_filepaths
     
 
-def extract_data(filepath):
+def extract_data(filepath: str):
+    """Extract data from compressed files (RAR or ZIP).
+
+    Args:
+        filepath (str): Path to the compressed file.
+    """
     print(f"Extracting data from {filepath}...")
     if filepath.endswith('.rar'):
         with rarfile.RarFile(filepath) as rf:
@@ -50,12 +64,23 @@ def extract_data(filepath):
             print(f"Extracted data from {filepath}")
 
 
-def extract_all_data(filepaths):
+def extract_all_data(filepaths: List[str]):
+    """Extract data from all provided file paths.
+
+    Args:
+        filepaths (List[str]): List of file paths to extract data from.
+    """
     for filepath in filepaths:
         extract_data(filepath)
 
 
-def reorganize_data(data_dir=DATA_DIR):
+def reorganize_data(data_dir: str = DATA_DIR):
+    """Reorganize data into separate directories for each cell type. Ignore the included 'train' and 'test' splits provided
+    by raabin.
+
+    Args:
+        data_dir (str, optional): directory containing extracted, uncompressed data. Defaults to DATA_DIR.
+    """
     sub_data_dirs = os.listdir(data_dir)
     
     for cell_type in CELL_TYPES:
