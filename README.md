@@ -18,5 +18,29 @@ Lastly, I've included a full list of dependencies as a requirements.txt, so you 
 
 Thanks for reading!
 
+## Environment Setup
 
+I managed my dependencies with uv. [View the instructions to install uv](https://docs.astral.sh/uv/getting-started/installation/) if you don't have it on your system.
+
+To build a suitable virtual environment, use:
+
+```bash
+uv sync
+```
+
+## To Download Data
+
+To download all 16,633 images, run:
+
+```bash
+python download_data.py
+```
+
+## To re-train model:
+
+...include later...
+
+## To Run Inference on a New Image:
+
+...include later...
 
