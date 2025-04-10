@@ -41,7 +41,19 @@ NUM_EPOCHS_FOR_TEST_RUN = 2
 
 
 class ImmuneCellImageDataset(Dataset):
-    def __init__(self, img_paths: list, class_labels: torch.tensor, transform=None, unique_labels=None, device=torch.device('cpu')):
+    def __init__(self, img_paths: List[str], class_labels: torch.tensor, transform: v2.Compose = None, unique_labels: torch.tensor = None, device: torch.device = torch.device('cpu')):
+        """Initialize an image dataset
+
+        Args:
+            img_paths (List[str]): list of image file paths 
+            class_labels (torch.tensor): class labels corresponding to the images, in the same order as img_paths
+            transform (v2.Compose, optional): transformations to be applied to the images. Defaults to None.
+            unique_labels (torch.tensor, optional): unique labels in the dataset. If None, will take the unique values in class_labels Defaults to None.
+            device (torch.device, optional): the device onto which tensors will be moved. Defaults to torch.device('cpu').
+
+        Raises:
+            ValueError: if the number of images does not equal the number of class labels
+        """
         self.img_paths=img_paths
         self.class_labels = class_labels
         self.transform=transform
@@ -102,6 +114,14 @@ def get_image_paths_and_class_labels(data_dir: str = DATA_DIR) -> Tuple[List[str
 
 
 def get_device(use_gpu: bool = True) -> torch.device:
+    """Retrieve the device to use for model training and inference
+
+    Args:
+        use_gpu (bool, optional): Whether to look for a GPU (MPS or CUDA). Defaults to True.
+
+    Returns:
+        torch.device: the device to use
+    """
     if use_gpu:
         if torch.backends.mps.is_available():
             print("Using MPS.")
@@ -123,6 +143,19 @@ def get_device(use_gpu: bool = True) -> torch.device:
 
 
 def get_pretrained_model(model_type: str, num_classes: int, device: torch.device) -> nn.Module:
+    f"""Instantiate a pretrained pytorch model based on the specified type
+
+    Args:
+        model_type (str): the type of model. Supported values are {MODEL_TYPES}
+        num_classes (int): the number of classes in the dataset aka the number of outputs
+        device (torch.device): the device onto which the model will be moved
+
+    Raises:
+        ValueError: if the model type is not recognized
+
+    Returns:
+        nn.Module: the pytorch model
+    """
     if model_type not in MODEL_TYPES:
         raise ValueError(f"Model type {model_type} not recognized. Choose from {MODEL_TYPES}.")
     
@@ -149,9 +182,23 @@ def get_pretrained_model(model_type: str, num_classes: int, device: torch.device
 
 
 def split_data_stratified(image_paths: List[str], class_labels: torch.Tensor, train_split_percentage: float,
-               valid_split_percentage: float, test_split_percentage: float, random_seed: int) -> \
-                Tuple[List[str], torch.Tensor, List[str], torch.Tensor, List[str], torch.Tensor]:
-    
+               valid_split_percentage: float, test_split_percentage: float, random_seed: int) -> Tuple[List[str], torch.Tensor, List[str], torch.Tensor, List[str], torch.Tensor]:
+    """Split dataset into train, validation, and test sets, stratified by class labels
+
+    Args:
+        image_paths (List[str]): list of image file paths
+        class_labels (torch.Tensor): class labels corresponding to the images, in the same order as image_paths
+        train_split_percentage (float): percentage of data to use for training
+        valid_split_percentage (float): percentage of data to use for validation
+        test_split_percentage (float): percentage of data to use for testing
+        random_seed (int): random seed for reproducibility
+
+    Raises:
+        ValueError: if the split percentages do not sum to 1.0
+
+    Returns:
+        Tuple[List[str], torch.Tensor, List[str], torch.Tensor, List[str], torch.Tensor]: paths to train images, train labels, paths to validation images, validation labels, paths to test images, test labels
+    """
     if not np.isclose(train_split_percentage + valid_split_percentage + test_split_percentage, 1.0):
         # had to use isclose due to numerical imprecision problems
         raise ValueError("Split percentages must sum to 1.0")
@@ -170,7 +217,17 @@ def split_data_stratified(image_paths: List[str], class_labels: torch.Tensor, tr
     return train_img_paths, train_class_labels, valid_img_paths, valid_class_labels, test_img_paths, test_class_labels
 
 
-def get_transforms(noise_augmentation: bool = True, noise_mean: float = 0.0, noise_std: float = 0.1) -> Tuple[v2.Compose, v2.Compose, v2.Compose]:
+def get_transforms(noise_augmentation: bool, noise_mean: float, noise_std: float) -> Tuple[v2.Compose, v2.Compose, v2.Compose]:
+    """Get the image transformations to use for training, validation, and test datasets
+
+    Args:
+        noise_augmentation (bool): whether to apply gaussian noise to training images
+        noise_mean (float): mean of Gaussian noise. Ignored if noise_augmentation is False
+        noise_std (float): standard deviation of Gaussian noise. Ignored if noise_augmentation is False
+
+    Returns:
+        Tuple[v2.Compose, v2.Compose, v2.Compose]: training data transformations, validation data transformations, test data transformations
+    """
     # transformations for training data
     train_transorm_list = [v2.Resize(size=(224, 224)),  # specs for imagenet
         v2.RandomHorizontalFlip(p=0.5),
@@ -202,8 +259,26 @@ def get_transforms(noise_augmentation: bool = True, noise_mean: float = 0.0, noi
 
 
 def get_dataloaders(image_paths: List[str], class_labels: torch.Tensor, train_split_percentage: float, valid_split_percentage: float, test_split_percentage: float,
-                 train_transform: v2.Compose, valid_transform: v2.Compose, test_transform: v2.Compose, batch_size: int, num_workers: int, device: torch.device, random_seed: int) \
-                -> Tuple[DataLoader, DataLoader, DataLoader]:
+                 train_transform: v2.Compose, valid_transform: v2.Compose, test_transform: v2.Compose, batch_size: int, num_workers: int, device: torch.device, random_seed: int) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    """Get the dataloaders for training, validation, and test datasets
+
+    Args:
+        image_paths (List[str]): list of image file paths
+        class_labels (torch.Tensor): class labels corresponding to the images, in the same order as image_paths
+        train_split_percentage (float): percentage of data to use for training
+        valid_split_percentage (float): percentage of data to use for validation
+        test_split_percentage (float): percentage of data to use for testing
+        train_transform (v2.Compose): transformations for training data
+        valid_transform (v2.Compose): transformations for validation data
+        test_transform (v2.Compose): transformations for test data
+        batch_size (int): batch size for dataloaders
+        num_workers (int): number of cpu cores to use for dataloaders
+        device (torch.device): the device onto which tensors will be moved
+        random_seed (int): random seed for reproducibility
+
+    Returns:
+        Tuple[DataLoader, DataLoader, DataLoader]: train dataloader, validation dataloader, test dataloader
+    """
     train_img_paths, train_class_labels, valid_img_paths, valid_class_labels, test_img_paths, test_class_labels = \
         split_data_stratified(image_paths, class_labels,
                               train_split_percentage=train_split_percentage,
@@ -211,7 +286,7 @@ def get_dataloaders(image_paths: List[str], class_labels: torch.Tensor, train_sp
                               test_split_percentage=test_split_percentage,
                               random_seed=random_seed)
     
-    # this is a little hacky. Just fixes a problem during test runs where not all 5 classes end up in the reduced dataset
+    # this is a little hacky. Just fixes a n_problem during test runs where not all 5 classes end up in the reduced dataset
     unique_labels = torch.tensor(list(CLASS_MAP.values())).sort()[0]
 
     train_dataset = ImmuneCellImageDataset(
@@ -257,11 +332,27 @@ def get_dataloaders(image_paths: List[str], class_labels: torch.Tensor, train_sp
 
 
 def get_loss_function(weight: torch.tensor = None) -> nn.Module:
+    """Get the loss function to use for training, optionally with class weights
+
+    Args:
+        weight (torch.tensor, optional): weights to apply to each class when computing loss. Defaults to None.
+
+    Returns:
+        nn.Module: the loss function
+    """
     loss_fn = nn.CrossEntropyLoss(weight=weight)
     return loss_fn
 
 
 def compute_class_weights(dataloader: DataLoader) -> torch.tensor:
+    """Compute class weights based on the class counts in the dataset. Class weights are computed as the total number of samples divided by the number of samples for each class.
+
+    Args:
+        dataloader (DataLoader): the dataloader for the dataset
+
+    Returns:
+        torch.tensor: tensor of class weights
+    """
     class_counts = dataloader.dataset.get_class_counts()
     total_samples = sum(class_counts.values())
     
@@ -276,7 +367,20 @@ def compute_class_weights(dataloader: DataLoader) -> torch.tensor:
 
 
 def get_optimizer(type: str, model: nn.Module, learning_rate: float, weight_decay: float) -> torch.optim.Optimizer:
-    
+    f"""Get the optimizer to use for training
+
+    Args:
+        type (str): type of optimizer. Supported values are {OPTIMIZER_TYPES}
+        model (nn.Module): the pytorch model to optimize
+        learning_rate (float): the learning rate for the optimizer
+        weight_decay (float): l2 penalty for the optimizer
+
+    Raises:
+        ValueError: if the optimizer type is not recognized
+
+    Returns:
+        torch.optim.Optimizer: the optimizer
+    """
     if type not in OPTIMIZER_TYPES:
         raise ValueError(f"Optimizer type {type} not recognized. Choose from {OPTIMIZER_TYPES}.")
 
@@ -289,7 +393,19 @@ def get_optimizer(type: str, model: nn.Module, learning_rate: float, weight_deca
     return optimizer
 
 
-def train_one_epoch_classification_model(dataloader, model, loss_fn, optimizer, device):
+def train_one_epoch_classification_model(dataloader: DataLoader, model: nn.Module, loss_fn: nn.Module, optimizer: torch.optim.Optimizer, device: torch.device):
+    """Train the classification model for one epoch
+
+    Args:
+        dataloader (DataLoader): the dataloader for the training dataset
+        model (nn.Module): the pytorch model to train
+        loss_fn (nn.Module): the loss function to minimize
+        optimizer (torch.optim.Optimizer): the optimizer to use
+        device (torch.device): the device onto which tensors will be moved
+
+    Returns:
+        float: the last loss value for the epoch
+    """
     # set model to train mode
     model.train()
     
@@ -330,7 +446,22 @@ def train_one_epoch_classification_model(dataloader, model, loss_fn, optimizer, 
     return last_loss
 
 
-def validate_classification_model(dataloader: DataLoader, model, loss_fn, device, return_predictions_and_labels: bool = False):
+def validate_classification_model(dataloader: DataLoader, model: nn.Module, loss_fn: nn.Module, device: torch.device, return_predictions_and_labels: bool = False):
+    """Validate the classification model on the given dataloader
+
+    Args:
+        dataloader (DataLoader): the dataloader for the validation or test dataset
+        model (nn.Module): the pytorch model to validate
+        loss_fn (nn.Module): the loss function to use
+        device (torch.device): the device onto which tensors will be moved
+        return_predictions_and_labels (bool, optional): Whether to return all predictions and class labels. Defaults to False.
+
+    Returns:
+        Tuple[float, dict]: mean validation loss, dictionary of losses for each class
+        or
+        Tuple[float, dict, dict, List[int]]: mean validation loss, dictionary of losses for each class, dictionary of predictions for each class, list of true class labels
+    """
+    
     # set model to evaluation mode
     model.eval()
     
@@ -412,7 +543,18 @@ def validate_classification_model(dataloader: DataLoader, model, loss_fn, device
     return mean_validation_loss, losses_for_unique_labels
 
 
-def create_and_save_loss_df(all_train_loss: List[float], all_validation_loss: List[float], test_loss: List[float], all_class_validation_losses: dict, num_epochs:int, output_dir: str):
+def create_and_save_loss_df(all_train_loss: List[float], all_validation_loss: List[float], test_loss: float, all_class_validation_losses: dict, num_epochs:int, output_dir: str):
+    """Create and save a dataframe of training, validation, and test losses
+
+    Args:
+        all_train_loss (List[float]): all training loss values
+        all_validation_loss (List[float]): all validation loss values
+        test_loss (float): final test loss value 
+        all_class_validation_losses (dict): dictionary of validation losses for each class
+        num_epochs (int): number of epochs trained
+        output_dir (str): directory to save the loss dataframe
+    """
+    
     df_train_val_loss = pd.DataFrame({
     'Epoch': np.arange(1, num_epochs+1),
     'Train': all_train_loss,
@@ -458,6 +600,30 @@ def train_classification_model(
     save_test_predictions_and_labels: bool,
     test_run: bool
 ):
+    """Train a classification model to classify white blood cell images
+
+    Args:
+        data_dir (str): Directory containing the images. Structure of data directory should be as follows: <<data_dir>>/<<class_name>>/<<image_file.png>>
+        use_gpu (bool): Whether to attempt to use GPU for training
+        noise_augmentation (bool): Whether to apply Gaussian noise augmentation to training images
+        noise_mean (float): Mean of Gaussian noise for training images
+        noise_std (float): Standard deviation of Gaussian noise for training images
+        train_split_percentage (float): Percentage of data to use for training. Split percentages must sum to 1.0
+        valid_split_percentage (float): Percentage of data to use for validation. Split percentages must sum to 1.0
+        test_split_percentage (float): Percentage of data to use for testing. Split percentages must sum to 1.0
+        batch_size (int): Batch size for training and validation
+        num_workers (int): Number of workers for data loading
+        random_seed (int): Random seed for reproducibility. Note: PyTorch cannot guarantee reproducibility (even on the same hardware)
+        model_type (str): Type of model to use
+        optimizer_type (str): Type of optimizer to use
+        learning_rate (float): Learning rate for optimizer
+        weight_decay (float): L2 penalty for optimizer
+        num_epochs (int): Number of epochs to train the model
+        weight_loss (bool): Whether to weight the loss function by class counts in the training dataset. Useful for unbalanced datasets
+        output_dir (str): Directory to save results and models
+        save_test_predictions_and_labels (bool): Whether to save test predictions to the output directory
+        test_run (bool): Whether to run a test run with reduced data
+    """
     start = time.monotonic()
     print("="*60)
     print("Starting training process...")
@@ -665,7 +831,7 @@ def parse_args():
     parser.add_argument("--use_gpu", action='store_true', help="Whether to attempt to use GPU for training")
     parser.add_argument("--noise_augmentation", action='store_true', help="Whether to apply Gaussian noise augmentation to training images")
     parser.add_argument("--noise_mean", type=float, default=0.0, help="Mean of Gaussian noise for training images")
-    parser.add_argument("--noise_std", type=float, default=0.01, help="Standard deviation of Gaussian noise for training images")
+    parser.add_argument("--noise_std", type=float, default=1e-7, help="Standard deviation of Gaussian noise for training images")
     parser.add_argument("--train_split_percentage", type=float, default=0.75, help="Percentage of data to use for training. Split percentages must sum to 1.0")
     parser.add_argument("--valid_split_percentage", type=float, default=0.15, help="Percentage of data to use for validation. Split percentages must sum to 1.0")
     parser.add_argument("--test_split_percentage", type=float, default=0.1, help="Percentage of data to use for testing. Split percentages must sum to 1.0")
