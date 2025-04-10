@@ -39,6 +39,17 @@ For info on all command line arguments, run:
 uv run python train.py --help
 ```
 
+## Plot and Analyze Training Results
+
+To plot and analyze the results of model training, use:
+
+```bash
+uv run python train_analysis.py --model_result_dir ... --model_name ...
+```
+
+And pass the name of the model result directory containing the outputs of `train.py`.
+
+
 ## To Run Inference on a New Image:
 
 As an example:
