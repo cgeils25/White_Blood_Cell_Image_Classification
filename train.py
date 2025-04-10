@@ -2,7 +2,10 @@ import os
 from typing import List, Tuple
 import argparse
 from tqdm import tqdm
+from neattime import neattime
+import time
 
+import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 
@@ -25,6 +28,12 @@ CLASS_MAP = {
 }
 
 MODEL_TYPES = ["resnet18", "resnet34", "resnet50"]
+
+OPTIMIZER_TYPES = ["Adam", "SGD"]   
+
+NUM_SAMPLES_FOR_TEST_RUN = 1000
+
+NUM_EPOCHS_FOR_TEST_RUN = 3
 
 
 class ImmuneCellImageDataset(Dataset):
@@ -109,21 +118,28 @@ def get_device(use_gpu: bool = True) -> torch.device:
     return device
 
 
-def get_pretrained_model(model_type: str = "resnet18", num_classes: int = 5) -> nn.Module:
+def get_pretrained_model(model_type: str, num_classes: int, device: torch.device) -> nn.Module:
     if model_type not in MODEL_TYPES:
-        raise ValueError(f"Model type {model_type} not recognized.")
+        raise ValueError(f"Model type {model_type} not recognized. Choose from {MODEL_TYPES}.")
     
     if model_type == "resnet18":
-        model = models.resnet18(pretrained=True)
+        model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
         model.fc = torch.nn.Linear(model.fc.in_features, num_classes)
 
     elif model_type == "resnet34":
-        model = models.resnet34(pretrained=True)
+        model = models.resnet34(weights=models.ResNet34_Weights.DEFAULT)
         model.fc = torch.nn.Linear(model.fc.in_features, num_classes)
 
     elif model_type == "resnet50":
-        model = models.resnet50(pretrained=True)
+        model = models.resnet50(weights=models.ResNet50_Weights.DEFAULT)
         model.fc = torch.nn.Linear(model.fc.in_features, num_classes)
+
+    # making sure gradients flow through the entire model
+    for parameter in model.parameters():
+        parameter.requires_grad = True
+        assert parameter.requires_grad == True
+    
+    model = model.to(device)
     
     return model
 
@@ -132,16 +148,20 @@ def split_data_stratified(image_paths: List[str], class_labels: torch.Tensor, tr
                valid_split_percentage: float, test_split_percentage: float, random_seed: int) -> \
                 Tuple[List[str], torch.Tensor, List[str], torch.Tensor, List[str], torch.Tensor]:
     
+    if not np.isclose(train_split_percentage + valid_split_percentage + test_split_percentage, 1.0):
+        # had to use isclose due to numerical imprecision problems
+        raise ValueError("Split percentages must sum to 1.0")
+
     # split into train+valid and test
     train_valid_img_paths, test_img_paths, train_valid_class_labels, test_class_labels =\
     train_test_split(image_paths, class_labels, test_size=test_split_percentage, random_state=random_seed, stratify=class_labels)
 
     # account for the fact that the valid and train split percentages won't sum to 1
-    adjusted_val_split_percentage = valid_split_percentage / train_split_percentage + valid_split_percentage
+    adjusted_valid_split_percentage = valid_split_percentage / train_split_percentage + valid_split_percentage
 
     # split train+valid subset into train and valid
     train_img_paths, valid_img_paths, train_class_labels, valid_class_labels =\
-    train_test_split(train_valid_img_paths, train_valid_class_labels, test_size=adjusted_val_split_percentage, random_state=random_seed, stratify=train_valid_class_labels)
+    train_test_split(train_valid_img_paths, train_valid_class_labels, test_size=adjusted_valid_split_percentage, random_state=random_seed, stratify=train_valid_class_labels)
 
     return train_img_paths, train_class_labels, valid_img_paths, valid_class_labels, test_img_paths, test_class_labels
 
@@ -154,14 +174,15 @@ def get_transforms(noise_augmentation: bool = True, noise_mean: float = 0.0, noi
         v2.ToDtype(torch.float32, scale=True), # convert to float tensor
         v2.Normalize(mean=[0.485, 0.456, 0.406],  # also specs for imagenet
         std=[0.229, 0.224, 0.225])
-        ]
+        ] # sometimes RandomResizeCrop moves the cell out of frame, may cause a problem for some samples
     
     if noise_augmentation:
-        v2.GaussianNoise(mean=noise_mean, std=noise_std)
+        print("Adding Gaussian noise augmentation to training data.")
+        train_transorm_list.append(v2.GaussianNoise(mean=noise_mean, sigma=noise_std))
+    else:
+        print("No Gaussian noise augmentation applied to training data.")
 
-    train_transform = v2.Compose(transform=train_transorm_list)
-
-    # sometimes RandomResizeCrop moves the cell out of frame, may cause a problem for some samples
+    train_transform = v2.Compose(transforms=train_transorm_list)
 
     # transformations for test (and validation) data
     test_transform = v2.Compose([
@@ -171,13 +192,13 @@ def get_transforms(noise_augmentation: bool = True, noise_mean: float = 0.0, noi
         std=[0.229, 0.224, 0.225])
         ])
     
-    val_transform = test_transform
+    valid_transform = test_transform
     
-    return train_transform, val_transform, test_transform 
+    return train_transform, valid_transform, test_transform 
 
 
 def get_dataloaders(image_paths: List[str], class_labels: torch.Tensor, train_split_percentage: float, valid_split_percentage: float, test_split_percentage: float,
-                 train_transform: v2.Compose, valid_transform: v2.Compose, test_transform: v2.Compose, batch_size: int, num_workers: int, random_seed: int) \
+                 train_transform: v2.Compose, valid_transform: v2.Compose, test_transform: v2.Compose, batch_size: int, num_workers: int, device: torch.device, random_seed: int) \
                 -> Tuple[DataLoader, DataLoader, DataLoader]:
     train_img_paths, train_class_labels, valid_img_paths, valid_class_labels, test_img_paths, test_class_labels = \
         split_data_stratified(image_paths, class_labels,
@@ -189,19 +210,22 @@ def get_dataloaders(image_paths: List[str], class_labels: torch.Tensor, train_sp
     train_dataset = ImmuneCellImageDataset(
         img_paths=train_img_paths,
         class_labels=train_class_labels,
-        transform=train_transform
+        transform=train_transform,
+        device=device
     )
 
     valid_dataset = ImmuneCellImageDataset(
         img_paths=valid_img_paths,
         class_labels=valid_class_labels,
-        transform=valid_transform
+        transform=valid_transform,
+        device=device
     )
 
     test_dataset = ImmuneCellImageDataset(
         img_paths=test_img_paths,
         class_labels=test_class_labels,
-        transform=test_transform
+        transform=test_transform,
+        device=device
     )
 
     train_dataloader = DataLoader(dataset=train_dataset, 
@@ -222,7 +246,26 @@ def get_dataloaders(image_paths: List[str], class_labels: torch.Tensor, train_sp
     return train_dataloader, valid_dataloader, test_dataloader
 
 
-def train_one_epoch(dataloader, model, loss_fn, optimizer, device):
+def get_loss_function() -> nn.Module:
+    loss_fn = nn.CrossEntropyLoss()
+    return loss_fn
+
+
+def get_optimizer(type: str, model: nn.Module, learning_rate: float, weight_decay: float) -> torch.optim.Optimizer:
+    
+    if type not in OPTIMIZER_TYPES:
+        raise ValueError(f"Optimizer type {type} not recognized. Choose from {OPTIMIZER_TYPES}.")
+
+    if type == 'Adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+
+    elif type == 'SGD':
+        optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate, weight_decay=weight_decay)
+    
+    return optimizer
+
+
+def train_one_epoch_classification_model(dataloader, model, loss_fn, optimizer, device):
     # set model to train mode
     model.train()
     
@@ -232,6 +275,10 @@ def train_one_epoch(dataloader, model, loss_fn, optimizer, device):
     for batch_idx, batch in enumerate(iter(dataloader)):
         # Every data instance is an input + label pair
         batch_inputs, batch_labels = batch
+
+        # this should be handled by the dataloader but moving to mps is breaking for me
+        batch_inputs = batch_inputs.to(device)
+        batch_labels = batch_labels.to(device)
 
         # Zero your gradients for every batch!
         optimizer.zero_grad()
@@ -272,6 +319,10 @@ def validate_classification_model(dataloader, model, loss_fn, device):
     for batch in tqdm(iter(dataloader)):
         # Every data instance is an input + label pair
         batch_inputs, batch_labels = batch
+
+        # this should be handled by the dataloader but moving to mps is breaking for me
+        batch_inputs = batch_inputs.to(device)
+        batch_labels = batch_labels.to(device)
 
         # Make predictions for this batch
         batch_outputs = model(batch_inputs).detach()
@@ -318,13 +369,269 @@ def validate_classification_model(dataloader, model, loss_fn, device):
     return mean_validation_loss, losses_for_unique_labels
 
 
+def create_and_save_loss_df(all_train_loss: List[float], all_validation_loss: List[float], test_loss: List[float], all_class_validation_losses: dict, num_epochs:int, output_dir: str):
+    df_train_val_loss = pd.DataFrame({
+    'Epoch': np.arange(1, num_epochs+1),
+    'Train': all_train_loss,
+    'Validation': all_validation_loss,
+    'Test': [None] * num_epochs
+    })
+
+    df_train_val_loss.loc[num_epochs-1, 'Test'] = test_loss
+
+    # want mapping of integer target labels to class names
+    class_map_inv = {v: k for k, v in CLASS_MAP.items()}
+
+    df_classes = pd.DataFrame({class_map_inv[label]: all_class_validation_losses[label] for label in all_class_validation_losses if len(all_class_validation_losses[label]) == num_epochs})
+
+    all_loss_df = pd.concat([df_train_val_loss, df_classes], axis=1)
+
+    loss_df_path = os.path.join(output_dir, 'losses.csv')
+    
+    all_loss_df.to_csv(loss_df_path, index=False)
+
+    print(f"Loss data saved to {loss_df_path}")
+
+    
+def train_classification_model(
+    data_dir: str,
+    use_gpu: bool,
+    noise_augmentation: bool,
+    noise_mean: float,
+    noise_std: float,
+    train_split_percentage: float,
+    valid_split_percentage: float,
+    test_split_percentage: float,
+    batch_size: int,
+    num_workers: int,
+    random_seed: int,
+    model_type: str,
+    optimizer_type: str,
+    learning_rate: float,
+    weight_decay: float,
+    num_epochs: int,
+    output_dir: str,
+    test_run: bool
+):
+    start = time.monotonic()
+    print("="*60)
+    print("Starting training process...")
+    print("="*60)
+
+    # make output directory
+    os.makedirs(output_dir, exist_ok=True)
+
+    # get dataloaders
+    print("Preparing data...")
+    image_paths, class_labels = get_image_paths_and_class_labels(data_dir=data_dir)
+
+    if test_run:
+        print("Running test run with reduced data...")
+        image_paths = image_paths[:NUM_SAMPLES_FOR_TEST_RUN]
+        class_labels = class_labels[:NUM_SAMPLES_FOR_TEST_RUN]
+        num_epochs = NUM_EPOCHS_FOR_TEST_RUN
+        output_dir = "TEST_RUN_" + output_dir 
+
+    device = get_device(use_gpu=use_gpu)
+
+    train_transform, valid_transform, test_transform = get_transforms(noise_augmentation=noise_augmentation,
+        noise_mean=noise_mean,
+        noise_std=noise_std)
+    
+    train_dataloader, validation_dataloader, test_dataloader = get_dataloaders(
+        image_paths=image_paths,
+        class_labels=class_labels,
+        train_split_percentage=train_split_percentage,
+        valid_split_percentage=valid_split_percentage,
+        test_split_percentage=test_split_percentage,
+        train_transform=train_transform,
+        valid_transform=valid_transform,
+        test_transform=test_transform,
+        batch_size=batch_size,
+        num_workers=num_workers,
+        device=torch.device('cpu'), # these dataloaders break when using MPS: https://stackoverflow.com/questions/76671692/iterate-over-dataloader-which-is-loaded-on-gpu-mps 
+        random_seed=random_seed
+    )
+
+    print("Data prepared.")
+
+    # get model
+    print("Instantiating model...")
+    model = get_pretrained_model(model_type=model_type, num_classes=len(CLASS_MAP), device=device)
+    print("Model instantiated.")
+
+    # get loss function and optimizer
+    print("Preparing loss function and optimizer...")
+    loss_fn = get_loss_function()
+    optimizer = get_optimizer(optimizer_type, model, learning_rate=learning_rate, weight_decay=weight_decay)
+    print("Loss function and optimizer prepared.")
+
+    all_train_loss = []
+    all_validation_loss = []
+    all_class_validation_losses = {label: [] for label in list(CLASS_MAP.values())}
+
+    best_model_path = None
+    best_model_valid_loss = None
+    best_model_epoch = None
+
+    for epoch in range(1, num_epochs+1):
+        print("-"*60)
+        print("Epoch ", epoch)
+
+        # train
+        print("Starting Model Training...")
+        last_train_loss = train_one_epoch_classification_model(train_dataloader, model, loss_fn, optimizer, device)
+        print("Last train loss: ", last_train_loss)
+
+        all_train_loss.append(last_train_loss)
+
+        # validation
+        print("Starting Model Validation...")
+        mean_validation_loss, losses_for_unique_labels = validate_classification_model(validation_dataloader, model, loss_fn, device)
+        print("Mean validation loss: ", mean_validation_loss)
+
+        print("Losses for individual classes: ")
+
+        for label, loss_val in losses_for_unique_labels.items():
+            print(f"\t{label}: {loss_val}")
+
+        all_validation_loss.append(mean_validation_loss)
+
+        # record individual class labels
+        for label in losses_for_unique_labels:
+            all_class_validation_losses[label].append(losses_for_unique_labels[label]) # this is stupid, I know
+
+        # saving model
+        print("Attempting to save model...")
+        if best_model_valid_loss is None and best_model_path is None:
+            print("Saving initial model...")
+            model_name = f'{model_type}_epoch_{epoch}.pt'
+            model_path = os.path.join(output_dir, model_name)
+            torch.save(model, model_path) # not saving state_dict because the C++ frontend doesn't like it
+
+            best_model_path = model_path
+            best_model_valid_loss = mean_validation_loss
+            best_model_epoch = epoch
+        
+        else:
+            if mean_validation_loss < best_model_valid_loss:
+                print(f"Saving new best model for epoch {epoch}...")
+                model_name = f'{model_type}_epoch_{epoch}.pt'
+                model_path = os.path.join(output_dir, model_name)
+                torch.save(model, model_path)
+
+                assert os.path.exists(model_path), 'Model failed to save'
+                print("Model saved successfully.")
+
+                print("Removing previous best model...")
+                if best_model_path is not None: # this check shouldn't be necessary but trying to be safe
+                    os.remove(best_model_path)
+                    print("Previous best model removed.")
+
+                print("Updating best model info...")
+                best_model_path = model_path
+                best_model_valid_loss = mean_validation_loss
+                best_model_epoch = epoch
+                print("Done.")
+
+            else:
+                print("Not saving model, validation loss did not improve.")
+        
+        print(f"""Current best model: 
+              \tModel path: {best_model_path}
+              \tEpoch: {best_model_epoch}
+              \tValidation loss: {best_model_valid_loss}
+                        """)
+
+        assert os.path.exists(model_path), 'Model failed to save'
+        print("Model saved")
+
+    print("Training complete.")
+
+    # create and save loss dataframe
+    print("Creating and saving loss dataframe...")
+    create_and_save_loss_df(
+        all_train_loss=all_train_loss,
+        all_validation_loss=all_validation_loss,
+        test_loss=mean_validation_loss,
+        all_class_validation_losses=all_class_validation_losses,
+        num_epochs=num_epochs,
+        output_dir=output_dir
+    )
+    print("Loss dataframe saved.")
+
+    # test
+    print("Starting Model Test...")
+    test_loss, losses_for_unique_labels = validate_classification_model(test_dataloader, model, loss_fn, device)
+    print("Test loss: ", test_loss)
+    print(f"Losses for individual classes: {losses_for_unique_labels}")
+
+    print("="*60)
+    print("Model training and evaluation complete.")
+    print(f"Total training time: {time.monotonic() - start}")
+    print("="*60)
+
+
+def print_args(args: argparse.Namespace) -> None:
+    """
+    Print the arguments passed to the script
+    """
+    print('-'*100)
+    print(f'Arguments passed to {__file__}:')
+    for arg, value in vars(args).items():
+        print(f'{arg}: {value}')
+    print('-'*100)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Train model to classify white blood cell images")
+
+    parser.add_argument("--data_dir", type=str, default="data", help="Directory containing the images. Structure of data directory should be as follows: <<data_dir>>/<<class_name>>/<<image_file.png>>")
+    parser.add_argument("--use_gpu", action='store_true', help="Whether to attempt to use GPU for training")
+    parser.add_argument("--noise_augmentation", action='store_true', help="Whether to apply Gaussian noise augmentation to training images")
+    parser.add_argument("--noise_mean", type=float, default=0.0, help="Mean of Gaussian noise for training images")
+    parser.add_argument("--noise_std", type=float, default=0.01, help="Standard deviation of Gaussian noise for training images")
+    parser.add_argument("--train_split_percentage", type=float, default=0.75, help="Percentage of data to use for training. Split percentages must sum to 1.0")
+    parser.add_argument("--valid_split_percentage", type=float, default=0.15, help="Percentage of data to use for validation. Split percentages must sum to 1.0")
+    parser.add_argument("--test_split_percentage", type=float, default=0.1, help="Percentage of data to use for testing. Split percentages must sum to 1.0")
+    parser.add_argument("--batch_size", type=int, default=32, help="Batch size for training and validation")
+    parser.add_argument("--num_workers", type=int, default=os.cpu_count(), help="Number of workers for data loading")
+    parser.add_argument("--random_seed", type=int, default=1738, help="Random seed for reproducibility. Note: pytorch cannot reproducibility (even on the same hardware).")
+    parser.add_argument("--model_type", type=str, default="resnet18", choices=MODEL_TYPES, help="Type of model to use")
+    parser.add_argument("--optimizer_type", type=str, default="Adam", choices=OPTIMIZER_TYPES, help="Type of optimizer to use")
+    parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for optimizer")
+    parser.add_argument("--weight_decay", type=float, default=1e-4, help="L2 penalty for optimizer")
+    parser.add_argument("--num_epochs", type=int, default=25, help="Number of epochs to train the model")
+    parser.add_argument("--output_dir", type=str, default=f"model_result_{neattime()}", help="Directory to save results and models")
+    parser.add_argument("--test_run", action='store_true', help="Whether to run a test run with reduced data")
+
     return parser.parse_args()
 
-def main():
-    # put as little in main as possible. want to be able to use optuna
-    pass
+
+def main(args):
+    print_args(args)
+
+    train_classification_model(
+        data_dir=args.data_dir,
+        use_gpu=args.use_gpu,
+        noise_augmentation=args.noise_augmentation,
+        noise_mean=args.noise_mean,
+        noise_std=args.noise_std,
+        train_split_percentage=args.train_split_percentage,
+        valid_split_percentage=args.valid_split_percentage,
+        test_split_percentage=args.test_split_percentage,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers,
+        random_seed=args.random_seed,
+        model_type=args.model_type,
+        optimizer_type=args.optimizer_type,
+        learning_rate=args.learning_rate,
+        weight_decay=args.weight_decay,
+        num_epochs=args.num_epochs,
+        output_dir=args.output_dir,
+        test_run = args.test_run
+    )
+
 
 if __name__ == "__main__":
     args = parse_args()
