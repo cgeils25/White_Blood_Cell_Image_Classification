@@ -4,3 +4,4 @@ CMakeCache.txt
 CMakeFiles/
 models_*
 .DS_Store
+plots
