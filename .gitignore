@@ -9,3 +9,4 @@ plots
 TEST_RUN_*
 slurm 
 train.ipynb
+train_analysis.ipynb
