@@ -4,12 +4,14 @@ import argparse
 from tqdm import tqdm
 from neattime import neattime
 import time
+import warnings
 
 import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 
 import torch
+import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import torch.nn as nn
 import torchvision
@@ -27,22 +29,24 @@ CLASS_MAP = {
     'Lymphocyte': 4
 }
 
-MODEL_TYPES = ["resnet18", "resnet34", "resnet50"]
+CLASS_MAP_INV = {v: k for k, v in CLASS_MAP.items()}
+
+MODEL_TYPES = ["resnet18", "resnet34", "resnet50"] 
 
 OPTIMIZER_TYPES = ["Adam", "SGD"]   
 
 NUM_SAMPLES_FOR_TEST_RUN = 1000
 
-NUM_EPOCHS_FOR_TEST_RUN = 3
+NUM_EPOCHS_FOR_TEST_RUN = 2
 
 
 class ImmuneCellImageDataset(Dataset):
-    def __init__(self, img_paths: list, class_labels: torch.tensor, transform=None, device=torch.device('cpu')):
+    def __init__(self, img_paths: list, class_labels: torch.tensor, transform=None, unique_labels=None, device=torch.device('cpu')):
         self.img_paths=img_paths
         self.class_labels = class_labels
         self.transform=transform
         self.device = device
-        self.unique_labels=torch.unique(class_labels)
+        self.unique_labels=torch.unique(class_labels) if unique_labels is None else unique_labels
 
         if len(img_paths) != class_labels.shape[0]:
             raise ValueError(f"Number of images ({len(img_paths)}) does not equal number of class labels ({class_labels.shape[0]})")
@@ -206,11 +210,15 @@ def get_dataloaders(image_paths: List[str], class_labels: torch.Tensor, train_sp
                               valid_split_percentage=valid_split_percentage,
                               test_split_percentage=test_split_percentage,
                               random_seed=random_seed)
+    
+    # this is a little hacky. Just fixes a problem during test runs where not all 5 classes end up in the reduced dataset
+    unique_labels = torch.tensor(list(CLASS_MAP.values())).sort()[0]
 
     train_dataset = ImmuneCellImageDataset(
         img_paths=train_img_paths,
         class_labels=train_class_labels,
         transform=train_transform,
+        unique_labels=unique_labels,
         device=device
     )
 
@@ -218,6 +226,7 @@ def get_dataloaders(image_paths: List[str], class_labels: torch.Tensor, train_sp
         img_paths=valid_img_paths,
         class_labels=valid_class_labels,
         transform=valid_transform,
+        unique_labels=unique_labels,
         device=device
     )
 
@@ -225,6 +234,7 @@ def get_dataloaders(image_paths: List[str], class_labels: torch.Tensor, train_sp
         img_paths=test_img_paths,
         class_labels=test_class_labels,
         transform=test_transform,
+        unique_labels=unique_labels,
         device=device
     )
 
@@ -246,9 +256,23 @@ def get_dataloaders(image_paths: List[str], class_labels: torch.Tensor, train_sp
     return train_dataloader, valid_dataloader, test_dataloader
 
 
-def get_loss_function() -> nn.Module:
-    loss_fn = nn.CrossEntropyLoss()
+def get_loss_function(weight: torch.tensor = None) -> nn.Module:
+    loss_fn = nn.CrossEntropyLoss(weight=weight)
     return loss_fn
+
+
+def compute_class_weights(dataloader: DataLoader) -> torch.tensor:
+    class_counts = dataloader.dataset.get_class_counts()
+    total_samples = sum(class_counts.values())
+    
+    # prevent division by 0 if for some reason one of the classes isn't present
+    class_weights = {label: (total_samples / count) if count > 0 else 0 for label, count in class_counts.items()}
+
+    print(class_weights)
+    
+    weights_tensor = torch.tensor([class_weights[label.item()] for label in dataloader.dataset.unique_labels], dtype=torch.float32)
+    
+    return weights_tensor
 
 
 def get_optimizer(type: str, model: nn.Module, learning_rate: float, weight_decay: float) -> torch.optim.Optimizer:
@@ -306,7 +330,7 @@ def train_one_epoch_classification_model(dataloader, model, loss_fn, optimizer, 
     return last_loss
 
 
-def validate_classification_model(dataloader, model, loss_fn, device):
+def validate_classification_model(dataloader: DataLoader, model, loss_fn, device, return_predictions_and_labels: bool = False):
     # set model to evaluation mode
     model.eval()
     
@@ -315,6 +339,11 @@ def validate_classification_model(dataloader, model, loss_fn, device):
 
     unique_labels = dataloader.dataset.unique_labels
     losses_for_unique_labels_raw = {unique_label.item(): [] for unique_label in unique_labels}
+
+    if return_predictions_and_labels:
+        # so we can collect the predictions and labels
+        all_predictions = {unique_label.item(): [] for unique_label in unique_labels}
+        all_labels = []
     
     for batch in tqdm(iter(dataloader)):
         # Every data instance is an input + label pair
@@ -329,6 +358,15 @@ def validate_classification_model(dataloader, model, loss_fn, device):
         
         # Compute the loss
         loss = loss_fn(batch_outputs, batch_labels)
+
+        # save the predictions and labels if requested
+        if return_predictions_and_labels:
+            batch_output_probabilities = torch.softmax(batch_outputs, dim=1)    
+
+            for label, predictions in enumerate(batch_output_probabilities.T.tolist()): # this assumes the labels are [0, 1, 2, ...]. not sure why that would ever be violated but just making a note of it
+                all_predictions[label].extend(predictions)
+
+            all_labels.extend(batch_labels.tolist())
 
         # get loss for each label
         for unique_label in unique_labels:
@@ -359,13 +397,18 @@ def validate_classification_model(dataloader, model, loss_fn, device):
     for unique_label in unique_labels:
         loss_list_for_unique_label_raw = losses_for_unique_labels_raw[unique_label.item()]
         total_samples = sum([pair[1] for pair in loss_list_for_unique_label_raw])
-        loss_weights = [pair[1]/total_samples for pair in loss_list_for_unique_label_raw]
-        assert sum(loss_weights) == 1 
+        loss_weights = [(pair[1]/total_samples) if total_samples > 0 else 0 for pair in loss_list_for_unique_label_raw]
+        if not sum(loss_weights) == 1:
+            warnings.warn(f"Warning: Loss weights for class {unique_label.item()} do not sum to 1.0. This is likely caused by one class not being present in the batch.")
         weighted_losses = [pair[0] * loss_weights[i] for i, pair in enumerate(loss_list_for_unique_label_raw)]
         aggregated_class_loss = sum(weighted_losses)
         losses_for_unique_labels[unique_label.item()] = aggregated_class_loss
 
     mean_validation_loss = np.mean(batch_loss_list)
+
+    if return_predictions_and_labels:
+        return mean_validation_loss, losses_for_unique_labels, all_predictions, all_labels
+
     return mean_validation_loss, losses_for_unique_labels
 
 
@@ -380,9 +423,9 @@ def create_and_save_loss_df(all_train_loss: List[float], all_validation_loss: Li
     df_train_val_loss.loc[num_epochs-1, 'Test'] = test_loss
 
     # want mapping of integer target labels to class names
-    class_map_inv = {v: k for k, v in CLASS_MAP.items()}
+    CLASS_MAP_INV = {v: k for k, v in CLASS_MAP.items()}
 
-    df_classes = pd.DataFrame({class_map_inv[label]: all_class_validation_losses[label] for label in all_class_validation_losses if len(all_class_validation_losses[label]) == num_epochs})
+    df_classes = pd.DataFrame({CLASS_MAP_INV[label]: all_class_validation_losses[label] for label in all_class_validation_losses if len(all_class_validation_losses[label]) == num_epochs})
 
     all_loss_df = pd.concat([df_train_val_loss, df_classes], axis=1)
 
@@ -410,7 +453,9 @@ def train_classification_model(
     learning_rate: float,
     weight_decay: float,
     num_epochs: int,
+    weight_loss: bool,
     output_dir: str,
+    save_test_predictions_and_labels: bool,
     test_run: bool
 ):
     start = time.monotonic()
@@ -462,7 +507,19 @@ def train_classification_model(
 
     # get loss function and optimizer
     print("Preparing loss function and optimizer...")
-    loss_fn = get_loss_function()
+
+    if weight_loss:
+        print("Weighting loss function by class counts in training dataset.")
+        class_weights = compute_class_weights(train_dataloader)
+        loss_fn = get_loss_function(weight=class_weights.to(device))
+
+        print("Class weights:")
+        for i, w in enumerate(class_weights):
+            print(f"\tClass {CLASS_MAP_INV[i]}: weight = {w.item()}")
+
+    else:
+        loss_fn = get_loss_function()
+
     optimizer = get_optimizer(optimizer_type, model, learning_rate=learning_rate, weight_decay=weight_decay)
     print("Loss function and optimizer prepared.")
 
@@ -562,7 +619,25 @@ def train_classification_model(
 
     # test
     print("Starting Model Test...")
-    test_loss, losses_for_unique_labels = validate_classification_model(test_dataloader, model, loss_fn, device)
+    if save_test_predictions_and_labels:
+        print("Saving test predictions and labels to output directory.")
+        test_loss, losses_for_unique_labels, all_predictions, all_labels = \
+        validate_classification_model(test_dataloader, model, loss_fn, device, return_predictions_and_labels=True)
+
+        test_prediction_df = pd.DataFrame({'Labels': all_labels})
+
+        for label in all_predictions:
+            test_prediction_df[CLASS_MAP_INV[label]] = all_predictions[label]
+
+        test_prediction_path = os.path.join(output_dir, 'test_predictions.csv')
+
+        test_prediction_df.to_csv(test_prediction_path, index=False)
+
+        print(f"Test predictions saved to {test_prediction_path}")
+    
+    else:
+        test_loss, losses_for_unique_labels = validate_classification_model(test_dataloader, model, loss_fn, device, return_predictions_and_labels=False)
+
     print("Test loss: ", test_loss)
     print(f"Losses for individual classes: {losses_for_unique_labels}")
 
@@ -602,7 +677,9 @@ def parse_args():
     parser.add_argument("--learning_rate", type=float, default=1e-5, help="Learning rate for optimizer")
     parser.add_argument("--weight_decay", type=float, default=1e-4, help="L2 penalty for optimizer")
     parser.add_argument("--num_epochs", type=int, default=25, help="Number of epochs to train the model")
+    parser.add_argument("--weight_loss", action='store_true', help="Whether to weight the loss function by class counts in the training dataset. Useful for unbalanced datasets. The weight will be equal to the total number of samples divided by the number of samples for each class.")
     parser.add_argument("--output_dir", type=str, default=f"model_result_{neattime()}", help="Directory to save results and models")
+    parser.add_argument("--save_test_predictions_and_labels", action='store_true', help="Whether to save test predictions to output directory")
     parser.add_argument("--test_run", action='store_true', help="Whether to run a test run with reduced data")
 
     return parser.parse_args()
@@ -628,7 +705,9 @@ def main(args):
         learning_rate=args.learning_rate,
         weight_decay=args.weight_decay,
         num_epochs=args.num_epochs,
+        weight_loss=args.weight_loss,
         output_dir=args.output_dir,
+        save_test_predictions_and_labels=args.save_test_predictions_and_labels,
         test_run = args.test_run
     )
 
