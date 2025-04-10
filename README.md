@@ -27,7 +27,17 @@ uv run python download_data.py
 
 ## Train the Model
 
-...include later...
+You can reproduce my model by re-running my entire trainign pipeline with:
+
+```bash
+uv run python train.py --use_gpu
+```
+
+For info on all command line arguments, run:
+
+```bash
+uv run python train.py --help
+```
 
 ## To Run Inference on a New Image:
 
