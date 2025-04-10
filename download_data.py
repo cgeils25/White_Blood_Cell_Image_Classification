@@ -14,7 +14,7 @@ DATA_URLs = ["http://dl.raabindata.com/WBC/Cropped_double_labeled/TestA.rar",
 TEMP_DIR = f'temp_{neattime()}/'
 
 # for holding the final processed data 
-DATA_DIR = f'data_{neattime()}/'
+DATA_DIR = f'data/'
 
 CELL_TYPES = ['Basophil', 'Eosinophil', 'Lymphocyte', 'Monocyte', 'Neutrophil']
 
@@ -115,7 +115,6 @@ def main():
     shutil.rmtree(path=TEMP_DIR)
 
     print("Reorganizing data...")
-    breakpoint()
     reorganize_data()
     print("Data reorganization complete.")
 
