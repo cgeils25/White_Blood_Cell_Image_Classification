@@ -3,5 +3,6 @@ __pycache__
 CMakeCache.txt
 CMakeFiles/
 models_*
+model_*
 .DS_Store
 plots
