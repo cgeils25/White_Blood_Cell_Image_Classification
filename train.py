@@ -418,9 +418,6 @@ def train_classification_model(
     print("Starting training process...")
     print("="*60)
 
-    # make output directory
-    os.makedirs(output_dir, exist_ok=True)
-
     # get dataloaders
     print("Preparing data...")
     image_paths, class_labels = get_image_paths_and_class_labels(data_dir=data_dir)
@@ -431,6 +428,9 @@ def train_classification_model(
         class_labels = class_labels[:NUM_SAMPLES_FOR_TEST_RUN]
         num_epochs = NUM_EPOCHS_FOR_TEST_RUN
         output_dir = "TEST_RUN_" + output_dir 
+    
+    # make output directory
+    os.makedirs(output_dir, exist_ok=True)
 
     device = get_device(use_gpu=use_gpu)
 
