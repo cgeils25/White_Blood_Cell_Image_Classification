@@ -8,3 +8,4 @@ model_*
 plots
 TEST_RUN_*
 slurm 
+train.ipynb
