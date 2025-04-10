@@ -75,7 +75,7 @@ def main():
 
     # load the model
     model_path = 'resnet18_epoch_47_time_04_06_2024_19_42_45' # path to the best-performing model
-    model = torch.load(model_path)
+    model = torch.load(model_path, weights_only=False)
     model.to(device)
     model.eval()
 
