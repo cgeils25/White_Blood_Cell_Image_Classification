@@ -27,10 +27,10 @@ uv run python download_data.py
 
 ## Train the Model
 
-You can reproduce my model by re-running my entire trainign pipeline with:
+You can reproduce my model by re-running my entire training pipeline with:
 
 ```bash
-uv run python train.py --use_gpu
+uv run python train.py --use_gpu --weight_loss --save_test_predictions_and_labels
 ```
 
 For info on all command line arguments, run:
