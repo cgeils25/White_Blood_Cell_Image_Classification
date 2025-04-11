@@ -27,8 +27,6 @@ import torchvision.models as models
 import torchvision.transforms.v2 as v2
 
 
-DATA_DIR = "data"
-
 CLASS_MAP = {
     'Basophil': 0,
     'Neutrophil': 1,
@@ -99,7 +97,7 @@ class ImmuneCellImageDataset(Dataset):
         return cell_type_counts
 
 
-def get_image_paths_and_class_labels(data_dir: str = DATA_DIR) -> Tuple[List[str], torch.Tensor]:
+def get_image_paths_and_class_labels(data_dir: str) -> Tuple[List[str], torch.Tensor]:
     class_subdirs = os.listdir(data_dir)
 
     image_paths = []
@@ -633,9 +631,9 @@ def train_classification_model(
         test_run (bool): Whether to run a test run with reduced data
     """
     start = time.monotonic()
-    print("="*60)
+    print("="*100)
     print("Starting training process...")
-    print("="*60)
+    print("="*100)
 
     # get dataloaders
     print("Preparing data...")
@@ -671,13 +669,28 @@ def train_classification_model(
         device=torch.device('cpu'), # these dataloaders break when using MPS: https://stackoverflow.com/questions/76671692/iterate-over-dataloader-which-is-loaded-on-gpu-mps 
         random_seed=random_seed
     )
-
     print("Data prepared.")
 
+    print("."*100)
+    print("Dataloader Class Counts and Proportions:")
+
+    for dataloader, name in zip([train_dataloader, validation_dataloader, test_dataloader],
+                                ['Train', 'Validation', 'Test']):
+        class_counts = dataloader.dataset.get_class_counts()
+        total_samples = sum(class_counts.values())
+        print(f"\t{name} dataset class counts:")
+        for label, count in class_counts.items():
+            proportion = count / total_samples
+            print(f"\t\tClass {CLASS_MAP_INV[label]}: {count} samples ({round(proportion*100, 2)}%)")
+        print()
+
+    print("."*100)
+
     # get model
-    print("Instantiating model...")
+    print(f"Instantiating {model_type} model...")
     model = get_pretrained_model(model_type=model_type, num_classes=len(CLASS_MAP), device=device)
-    print("Model instantiated.")
+    print(f"{model_type} model instantiated.")
+    print("."*100)
 
     # get loss function and optimizer
     print("Preparing loss function and optimizer...")
@@ -697,6 +710,8 @@ def train_classification_model(
     optimizer = get_optimizer(optimizer_type, model, learning_rate=learning_rate, weight_decay=weight_decay)
     print("Loss function and optimizer prepared.")
 
+    print("."*100)
+
     all_train_loss = []
     all_validation_loss = []
     all_class_validation_losses = {label: [] for label in list(CLASS_MAP.values())}
@@ -706,7 +721,7 @@ def train_classification_model(
     best_model_epoch = None
 
     for epoch in range(1, num_epochs+1):
-        print("-"*60)
+        print("-"*100)
         print("Epoch ", epoch)
 
         # train
