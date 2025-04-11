@@ -808,7 +808,7 @@ def train_classification_model(
         print("Model saved")
 
     print("Training complete.")
-
+    print("."*100)
     # create and save loss dataframe
     print("Creating and saving loss dataframe...")
     create_and_save_loss_df(
@@ -820,9 +820,19 @@ def train_classification_model(
         output_dir=output_dir
     )
     print("Loss dataframe saved.")
+    
+    print("."*100)
 
-    # test
     print("Starting Model Test...")
+
+    if not best_model_epoch == num_epochs:
+        # so that we don't just test on the last model if it wasn't the best
+        print("Best model based on validation loss is not the final model. Loading best model for testing...")
+        model = torch.load(best_model_path)
+        model.to(device)
+        print(f"Best model loaded from {best_model_path}")
+
+
     if save_test_predictions_and_labels:
         print("Saving test predictions and labels to output directory.")
         test_loss, losses_for_unique_labels, all_predictions, all_labels = \
