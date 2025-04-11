@@ -3,10 +3,9 @@ import torch
 import torch.nn as nn
 import torchvision
 import torchvision.transforms.v2 as v2
-import os
 import time
 
-from train import CLASS_MAP, CLASS_MAP_INV, get_device, get_test_transform
+from train import CLASS_MAP_INV, get_device, get_test_transform
 
 logging=False
 
