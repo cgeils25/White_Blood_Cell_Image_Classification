@@ -379,8 +379,6 @@ def compute_class_weights(dataloader: DataLoader) -> torch.tensor:
     
     # prevent division by 0 if for some reason one of the classes isn't present
     class_weights = {label: (total_samples / count) if count > 0 else 0 for label, count in class_counts.items()}
-
-    print(class_weights)
     
     weights_tensor = torch.tensor([class_weights[label.item()] for label in dataloader.dataset.unique_labels], dtype=torch.float32)
     
