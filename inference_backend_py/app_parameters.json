@@ -1,0 +1,5 @@
+{
+    "model_path": "model_result_2025-04-10_13-52-59_537869/resnet18_epoch_15.pt",
+    "model_name": "ResNet-18",
+    "use_gpu": true
+}
