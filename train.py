@@ -1,3 +1,11 @@
+"""
+A CLI-based pipeline to train a model in the ResNet family to classify Leukocytes.
+
+For more information, run:
+
+uv run python train.py --help
+"""
+
 import os
 from typing import List, Tuple
 import argparse
