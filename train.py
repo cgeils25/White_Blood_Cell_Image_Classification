@@ -223,18 +223,8 @@ def split_data_stratified(image_paths: List[str], class_labels: torch.Tensor, tr
     return train_img_paths, train_class_labels, valid_img_paths, valid_class_labels, test_img_paths, test_class_labels
 
 
-def get_transforms(noise_augmentation: bool, noise_mean: float, noise_std: float) -> Tuple[v2.Compose, v2.Compose, v2.Compose]:
-    """Get the image transformations to use for training, validation, and test datasets
-
-    Args:
-        noise_augmentation (bool): whether to apply gaussian noise to training images
-        noise_mean (float): mean of Gaussian noise. Ignored if noise_augmentation is False
-        noise_std (float): standard deviation of Gaussian noise. Ignored if noise_augmentation is False
-
-    Returns:
-        Tuple[v2.Compose, v2.Compose, v2.Compose]: training data transformations, validation data transformations, test data transformations
-    """
-    # transformations for training data
+def get_train_transform(noise_augmentation: bool, noise_mean: float, noise_std: float) -> Tuple[v2.Compose, v2.Compose, v2.Compose]:
+    # transformations for training data. Separated for convenience
     train_transorm_list = [v2.Resize(size=(224, 224)),  # specs for imagenet
         v2.RandomHorizontalFlip(p=0.5),
         v2.RandomResizedCrop(size=(224, 224), scale=(0.75, 1.0)), # scale --> lower and upper bounds of crop size
@@ -251,6 +241,10 @@ def get_transforms(noise_augmentation: bool, noise_mean: float, noise_std: float
 
     train_transform = v2.Compose(transforms=train_transorm_list)
 
+    return train_transform
+
+
+def get_test_transform() -> v2.Compose:
     # transformations for test (and validation) data
     test_transform = v2.Compose([
         v2.Resize(size=(224, 224)),
@@ -258,6 +252,27 @@ def get_transforms(noise_augmentation: bool, noise_mean: float, noise_std: float
         v2.Normalize(mean=[0.485, 0.456, 0.406],
         std=[0.229, 0.224, 0.225])
         ])
+
+    return test_transform
+
+
+def get_transforms(noise_augmentation: bool, noise_mean: float, noise_std: float) -> Tuple[v2.Compose, v2.Compose, v2.Compose]:
+    """Get the image transformations to use for training, validation, and test datasets
+
+    Args:
+        noise_augmentation (bool): whether to apply gaussian noise to training images
+        noise_mean (float): mean of Gaussian noise. Ignored if noise_augmentation is False
+        noise_std (float): standard deviation of Gaussian noise. Ignored if noise_augmentation is False
+
+    Returns:
+        Tuple[v2.Compose, v2.Compose, v2.Compose]: training data transformations, validation data transformations, test data transformations
+    """
+
+    train_transform = get_train_transform(noise_augmentation=noise_augmentation, 
+        noise_mean=noise_mean,
+        noise_std=noise_std)
+
+    test_transform = get_test_transform()
     
     valid_transform = test_transform
     
