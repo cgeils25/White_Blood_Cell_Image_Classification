@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inference Frontend</title>
+    <style>
+        #drop-zone {
+            width: 300px;
+            height: 200px;
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            margin: 20px auto;
+            cursor: pointer;
+        }
+        #drop-zone.hover {
+            border-color: #666;
+        }
+        #output {
+            margin-top: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to the Inference Frontend</h1>
+    <p>This is a simple frontend for inference tasks.</p>
+
+    <div id="drop-zone">Drop a file here or click to select</div>
+    <input type="file" id="file-input" style="display: none;">
+    <div id="output"></div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const outputDiv = document.getElementById('output');
+
+        // Simulated predict function
+        async function predict(filePath) {
+            // Simulate a delay and return a mock result
+            return new Promise(resolve => {
+                setTimeout(() => {
+                    resolve(`Prediction result for file: ${filePath}`);
+                }, 1000);
+            });
+        }
+
+        // Handle file selection
+        function handleFile(file) {
+            const filePath = file.name; // Simulating file path with file name
+            outputDiv.textContent = 'Processing...';
+            predict(filePath).then(result => {
+                outputDiv.textContent = result;
+            });
+        }
+
+        // Drag-and-drop functionality
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('hover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('hover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('hover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+
+        // Click to open file dialog
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', () => {
+            const file = fileInput.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        });
+    </script>
+</body>
+</html>
