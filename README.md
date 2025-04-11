@@ -44,7 +44,7 @@ uv run python train.py --help
 To plot and analyze the results of model training, use:
 
 ```bash
-uv run python train_analysis.py --model_result_dir ... --model_name ...
+uv run python analysis/train_analysis.py --model_result_dir ... --model_name ...
 ```
 
 And pass the name of the model result directory containing the outputs of `train.py`.
