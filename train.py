@@ -828,8 +828,7 @@ def train_classification_model(
     if not best_model_epoch == num_epochs:
         # so that we don't just test on the last model if it wasn't the best
         print("Best model based on validation loss is not the final model. Loading best model for testing...")
-        model = torch.load(best_model_path)
-        model.to(device)
+        model = torch.load(best_model_path, weights_only=False, map_location=device)
         print(f"Best model loaded from {best_model_path}")
 
 
