@@ -9,7 +9,19 @@ from train import CLASS_MAP_INV, get_device, get_test_transform
 
 logging=False
 
-def load_model(model_path: str, device: torch.device = None):
+def load_model(model_path: str, device: torch.device = None) -> nn.Module:
+    """Load a pytorch model from a given path
+
+    Args:
+        model_path (str): path to the pytorch model
+        device (torch.device, optional): the device to load the model on. Defaults to None.
+
+    Raises:
+        ValueError: if the model path does not end in 'pt
+
+    Returns:
+        nn.Module: a pytorch model
+    """
 
     print(f"Loading model from {model_path} on device {device}")
     
@@ -22,7 +34,17 @@ def load_model(model_path: str, device: torch.device = None):
     return model
 
 
-def get_image_from_path(image_path: str, device: torch.device = None, image_transform: v2.Compose =None):
+def get_image_from_path(image_path: str, device: torch.device = None, image_transform: v2.Compose =None) -> torch.tensor:
+    """Load an image as a tensor and prepare for input to model
+
+    Args:
+        image_path (str): path to the image
+        device (torch.device, optional): the device to load the tensor onto. Defaults to None.
+        image_transform (v2.Compose, optional): transformations to be applied to the data. Defaults to None.
+
+    Returns:
+        torch.tensor: the image as a tensor
+    """
     img_as_tensor = torchvision.io.read_image(image_path)
 
     img_as_tensor = image_transform(img_as_tensor)
@@ -33,14 +55,28 @@ def get_image_from_path(image_path: str, device: torch.device = None, image_tran
 
 
 class PredictionResponse:
+    """
+    A response model for prediction results
+    """
     def __init__(self, predictions: dict, predicted_class: str, status: str):
         self.predictions = predictions
         self.predicted_class = predicted_class
         self.status = status
 
 
-def predict(model: nn.Module, image_path: str, device: torch.device, image_transform: v2.Compose):
-    
+def predict(model: nn.Module, image_path: str, device: torch.device, image_transform: v2.Compose) -> PredictionResponse:
+    """Make a prediction on a given image
+
+    Args:
+        model (nn.Module): a pytorch model
+        image_path (str): the path to the image
+        device (torch.device): the device to load the model and tensor onto
+        image_transform (v2.Compose): transformations to be applied to the data.
+
+    Returns:
+        PredictionResponse: predictions
+    """
+
     try:
         image = get_image_from_path(image_path, device=device, image_transform=image_transform)
 
