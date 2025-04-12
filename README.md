@@ -2,7 +2,7 @@
 
 This is a model training pipeline which includes a CLI to run local inference to classify microscopic white blood cell images. It was based on the ResNet family of models (18, 34, 50), which I fine-tuned with 16633 expert-labeled microscopic images of basophils, neutrophils, monocytes, eosinophils, and lymphocytes. 
 
-![all models](plots/comparison_plot_model_result_2025-04-10_13-52-59_537869_model_result_2025-04-10_13-58-43_878647_model_result_2025-04-10_13-59-41_252110.png)
+![all models](plots/comparison_plot_model_result_2025-04-11_19-50-40_423164_model_result_2025-04-11_19-51-38_404555_model_result_2025-04-11_19-51-38_404532.png)
 
 
 ## Environment Setup
