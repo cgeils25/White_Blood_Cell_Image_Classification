@@ -58,6 +58,8 @@ To start my CLI for running inference on new images, run:
 uv run python predict.py --model_path sample/resnet18_epoch_10.pt --model_name ResNet-18 --use_gpu
 ```
 
+(I've included my trained ResNet-18 model in this repo)
+
 You can pass `sample/random_eosinophil_image.jpg` to make a prediction, and should get something like following result:
 
 ```
