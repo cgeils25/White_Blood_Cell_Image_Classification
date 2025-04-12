@@ -4,6 +4,8 @@ This is a model training pipeline which includes a CLI to run local inference to
 
 ![all models](plots/comparison_plot_model_result_2025-04-11_19-50-40_423164_model_result_2025-04-11_19-51-38_404555_model_result_2025-04-11_19-51-38_404532.png)
 
+![leukocytes](plots/leukocyte_images.png)
+
 
 ## Environment Setup
 
