@@ -5,7 +5,6 @@ CMakeFiles/
 models_*
 model_*
 .DS_Store
-plots
 TEST_RUN_*
 slurm 
 train.ipynb
