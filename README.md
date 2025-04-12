@@ -60,7 +60,7 @@ uv run python predict.py --model_path sample/resnet18_epoch_10.pt --model_name R
 
 (I've included my trained ResNet-18 model in this repo)
 
-You can pass `sample/random_eosinophil_image.jpg` to make a prediction, and should get something like following result:
+You can pass `sample/random_eosinophil_image.jpg` to make a prediction, and should get something like the following result:
 
 ```
 Predicted class: Eosinophil
